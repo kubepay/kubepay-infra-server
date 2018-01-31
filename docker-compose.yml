@@ -1,0 +1,108 @@
+version: '3'
+
+services:
+  infra-postgresql:
+    container_name: infra-postgresql
+    image: postgres
+    environment:
+        - POSTGRES_DB=${ENV_POSTGRES_DB}
+        - POSTGRES_USER=${ENV_POSTGRES_USER}
+        - POSTGRES_PASSWORD=${ENV_POSTGRES_PASSWORD}
+        - POSTGRES_ROOT_PASSWORD=${ENV_POSTGRES_ROOT_PASSWORD}
+    ports:
+      - 54320:5432
+    restart: always #unless-stopped
+    volumes:
+
+      - ${MY_DOCKER_VOLUME}/postgresql/data:/var/lib/postgresql/data
+    networks:
+      mynetwork:
+        aliases:
+          - db1.internal.prod.example.com
+          - db2.internal.prod.example.com
+
+  keycloak-server:
+    container_name: infra-keycloak
+    image: jboss/keycloak
+    external_links:
+      - infra-postgresql:postgres
+    environment:
+      - KEYCLOAK_USER=${ENV_KEYCLOAK_USER}
+      - KEYCLOAK_PASSWORD=${ENV_KEYCLOAK_PASSWORD}
+      - KEYCLOAK_HOME=/opt/jboss/keycloak
+      - POSTGRES_DB=${ENV_POSTGRES_DB}
+      - POSTGRES_USER=${ENV_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${ENV_POSTGRES_PASSWORD}
+    ports:
+      - 10090:8080
+    restart: always #unless-stopped
+    networks:
+      - mynetwork
+
+  infra-fluentd:
+    build: ./fluentd
+    volumes:
+      - ./fluentd/conf:/fluentd/etc
+    external_links:
+      - infra-elasticsearch:elasticsearch
+    ports:
+      - 24224:24224
+      - 24224:24224/udp
+    logging:
+        driver: json-file
+        options:
+            max-size: 100m
+              max-file: 5
+
+  infra-elasticsearch:
+      container_name: infra-elasticsearch
+      image: elasticsearch:latest
+      ports:
+        - 10090:8080
+      restart: always #unless-stopped
+      networks:
+        - mynetwork
+
+  infra-kibana:
+    image: kibana:latest
+    external_links:
+      - infra-elasticsearch:elasticsearch
+    ports:
+      - "92000:9200"
+    restart: always #unless-stopped
+      networks:
+        - mynetwork
+
+  infra-httpd:
+    image: httpd:2.2.32
+    ports:
+      - "80800:8080"
+    depends_on:
+      - fluentd
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: localhost:24224
+        tag: httpd.access
+    restart: always #unless-stopped
+      networks:
+        - mynetwork
+
+  redis:
+    image: redis
+    container_name: infra-redis
+    ports:
+        - 63790:6379
+    networks:
+      mynetwork:
+        aliases:
+          - redis.internal.prod.example.com
+
+networks:
+  mynetwork:
+    driver: bridge
+
+
+
+
+
