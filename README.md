@@ -1,6 +1,6 @@
 # kubepay-infra-server
 
-This repository holds a docker-compose file, which will initiate a few infrastructure services for your needs.
+This repository holds a docker-compose file, which will initiate a few infrastructure services for your basic needs.
 
 ## Usage:
  
